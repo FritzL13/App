@@ -2,11 +2,12 @@ import { useState } from 'react';
 import { Modal } from '../../components/Modal';
 import { Button } from '../../components/Button';
 import { PotenzialAuswahl } from '../../components/PotenzialDots';
-import { IconTrash, IconPhone, IconMail, IconCalendar } from '../../components/Icons';
+import { IconTrash, IconPhone, IconMail, IconCalendar, IconMapPin } from '../../components/Icons';
 import type { Kunde, KontaktEintrag } from '../../types';
 import { KUNDE_STATUS_LIST } from '../../types';
 import { generateId } from '../../lib/id';
 import { formatDatum } from '../../lib/format';
+import { routenLink } from '../../lib/maps';
 
 const feldKlasse =
   'mt-1 w-full rounded-xl border border-[var(--color-line)] bg-white px-3 py-2 text-sm text-[var(--color-ink)]';
@@ -124,7 +125,7 @@ export function KundeFormModal({
           </label>
         </div>
 
-        {(form.telefon || form.email) && (
+        {(form.telefon || form.email || form.ort) && (
           <div className="flex gap-2">
             {form.telefon && (
               <a
@@ -140,6 +141,16 @@ export function KundeFormModal({
                 className="flex flex-1 items-center justify-center gap-1.5 rounded-xl border border-[var(--color-line)] bg-white py-2 text-xs font-medium text-[var(--color-petrol)]"
               >
                 <IconMail width={15} height={15} /> E-Mail
+              </a>
+            )}
+            {form.ort && (
+              <a
+                href={routenLink(form.firma, form.ort)}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="flex flex-1 items-center justify-center gap-1.5 rounded-xl border border-[var(--color-line)] bg-white py-2 text-xs font-medium text-[var(--color-petrol)]"
+              >
+                <IconMapPin width={15} height={15} /> Route
               </a>
             )}
           </div>

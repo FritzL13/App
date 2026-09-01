@@ -227,6 +227,36 @@ export function erstelleWochenReport(kunden: Kunde[], kontakte: KontaktEintrag[]
   };
 }
 
+export interface WochenPunkt {
+  wochenStart: Date;
+  kalenderwoche: number;
+  kundenkontakte: number;
+  kandidatenkontakte: number;
+}
+
+function kalenderwoche(datum: Date): number {
+  const d = new Date(Date.UTC(datum.getFullYear(), datum.getMonth(), datum.getDate()));
+  const tagNr = (d.getUTCDay() + 6) % 7;
+  d.setUTCDate(d.getUTCDate() - tagNr + 3);
+  const jahresStart = new Date(Date.UTC(d.getUTCFullYear(), 0, 1));
+  return Math.ceil(((d.getTime() - jahresStart.getTime()) / 86400000 + 1) / 7);
+}
+
+export function woechentlicherVerlauf(kontakte: KontaktEintrag[], wochenAnzahl = 8): WochenPunkt[] {
+  const punkte: WochenPunkt[] = [];
+  for (let offset = -(wochenAnzahl - 1); offset <= 0; offset++) {
+    const { start, end } = getWeekRange(new Date(), offset);
+    const inWoche = kontakte.filter((k) => istInBereich(k.datum, start, end));
+    punkte.push({
+      wochenStart: start,
+      kalenderwoche: kalenderwoche(start),
+      kundenkontakte: inWoche.filter((k) => k.bezugTyp === 'Kunde').length,
+      kandidatenkontakte: inWoche.filter((k) => k.bezugTyp === 'Kandidat').length,
+    });
+  }
+  return punkte;
+}
+
 export function zaehleNachStatus(kunden: Kunde[]): Record<KundeStatus, number> {
   const result = {} as Record<KundeStatus, number>;
   for (const k of kunden) {
