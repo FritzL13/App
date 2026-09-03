@@ -5,6 +5,15 @@ import { IconDownload, IconUpload } from '../../components/Icons';
 import { useStore } from '../../lib/store';
 import type { Ziele } from '../../types';
 import { erstelleBackup, downloadBackup, parseBackup } from '../../lib/backup';
+import { kundenZuCsv, kandidatenZuCsv, downloadCsv } from '../../lib/csv';
+import { heuteIso } from '../../lib/format';
+import {
+  werdenErinnerungenUnterstuetzt,
+  erinnerungenSindAktiv,
+  setzeErinnerungenAktiv,
+  berechtigungsStatus,
+  berechtigungAnfordern,
+} from '../../lib/notifications';
 
 export function ZielSettingsModal({ onClose }: { onClose: () => void }) {
   const { ziele, aktualisiereZiele, kunden, kandidaten, kontakte, ersetzeAlleDaten } = useStore();
@@ -12,6 +21,23 @@ export function ZielSettingsModal({ onClose }: { onClose: () => void }) {
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [importFehler, setImportFehler] = useState<string | null>(null);
   const [importErfolg, setImportErfolg] = useState(false);
+  const [erinnerungenAktiv, setErinnerungenAktivState] = useState(erinnerungenSindAktiv());
+  const [berechtigung, setBerechtigung] = useState(berechtigungsStatus());
+
+  async function erinnerungenUmschalten() {
+    if (erinnerungenAktiv) {
+      setzeErinnerungenAktiv(false);
+      setErinnerungenAktivState(false);
+      return;
+    }
+    if (berechtigungsStatus() !== 'granted') {
+      const ergebnis = await berechtigungAnfordern();
+      setBerechtigung(ergebnis);
+      if (ergebnis !== 'granted') return;
+    }
+    setzeErinnerungenAktiv(true);
+    setErinnerungenAktivState(true);
+  }
 
   function speichern() {
     aktualisiereZiele(form);
@@ -21,6 +47,14 @@ export function ZielSettingsModal({ onClose }: { onClose: () => void }) {
   function exportieren() {
     const backup = erstelleBackup(kunden, kandidaten, kontakte, ziele);
     downloadBackup(backup);
+  }
+
+  function kundenCsvExportieren() {
+    downloadCsv(kundenZuCsv(kunden), `kunden-${heuteIso()}.csv`);
+  }
+
+  function kandidatenCsvExportieren() {
+    downloadCsv(kandidatenZuCsv(kandidaten), `kandidaten-${heuteIso()}.csv`);
   }
 
   function importierenKlick() {
@@ -77,6 +111,38 @@ export function ZielSettingsModal({ onClose }: { onClose: () => void }) {
             />
           </label>
         </section>
+
+        {werdenErinnerungenUnterstuetzt() && (
+          <section className="space-y-2 border-t border-[var(--color-line)] pt-4">
+            <h3 className="text-sm font-semibold text-[var(--color-ink)]/70">Erinnerungen</h3>
+            <div className="flex items-center justify-between gap-3 rounded-xl border border-[var(--color-line)] bg-white px-3 py-2.5">
+              <div className="min-w-0">
+                <p className="text-xs font-medium text-[var(--color-ink)]">"Heute fällig" beim Öffnen melden</p>
+                <p className="text-[11px] text-[var(--color-ink)]/50">Einmal täglich, nur solange die App im Browser offen ist.</p>
+              </div>
+              <button
+                type="button"
+                role="switch"
+                aria-checked={erinnerungenAktiv}
+                onClick={erinnerungenUmschalten}
+                className={`relative h-6 w-11 shrink-0 rounded-full transition ${
+                  erinnerungenAktiv ? 'bg-[var(--color-orange)]' : 'bg-[var(--color-line)]'
+                }`}
+              >
+                <span
+                  className={`absolute top-0.5 h-5 w-5 rounded-full bg-white transition ${
+                    erinnerungenAktiv ? 'left-5' : 'left-0.5'
+                  }`}
+                />
+              </button>
+            </div>
+            {berechtigung === 'denied' && (
+              <p className="text-[11px] text-[var(--color-danger)]">
+                Benachrichtigungen sind im Browser blockiert. Bitte in den Browser-Einstellungen für diese Seite erlauben.
+              </p>
+            )}
+          </section>
+        )}
 
         <section className="space-y-3">
           <h3 className="text-sm font-semibold text-[var(--color-ink)]/70">Hauptziel</h3>
@@ -163,6 +229,28 @@ export function ZielSettingsModal({ onClose }: { onClose: () => void }) {
           <input ref={fileInputRef} type="file" accept="application/json" className="hidden" onChange={onFileGewaehlt} />
           {importFehler && <p className="text-xs text-[var(--color-danger)]">{importFehler}</p>}
           {importErfolg && <p className="text-xs text-[#1f7a4d]">Import erfolgreich – Daten wurden ersetzt.</p>}
+
+          <p className="pt-2 text-xs text-[var(--color-ink)]/55">
+            CSV-Export für Excel & Co. (JSON-Backup ist die vollständige Sicherung, CSV nur zum Weiterverarbeiten).
+          </p>
+          <div className="flex gap-2">
+            <Button
+              variant="ghost"
+              className="flex flex-1 items-center justify-center gap-1.5"
+              onClick={kundenCsvExportieren}
+              disabled={kunden.length === 0}
+            >
+              <IconDownload width={16} height={16} /> Kunden CSV
+            </Button>
+            <Button
+              variant="ghost"
+              className="flex flex-1 items-center justify-center gap-1.5"
+              onClick={kandidatenCsvExportieren}
+              disabled={kandidaten.length === 0}
+            >
+              <IconDownload width={16} height={16} /> Kandidaten CSV
+            </Button>
+          </div>
         </section>
       </div>
     </Modal>

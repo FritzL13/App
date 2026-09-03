@@ -1,10 +1,11 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { useStore } from '../lib/store';
 import { PageHeader } from '../components/PageHeader';
 import { EmptyState } from '../components/EmptyState';
 import { ProgressBar } from '../components/ProgressBar';
 import { Button } from '../components/Button';
 import { KundeKarte } from '../components/KundeKarte';
+import { Sparkline } from '../components/Sparkline';
 import { IconSettings, IconCheck, IconRefresh } from '../components/Icons';
 import { ZielSettingsModal } from './heute/ZielSettingsModal';
 import type { Kunde } from '../types';
@@ -22,9 +23,11 @@ import {
   monateSeit,
   erstelleWochenReport,
   conversionReport,
+  woechentlicherVerlauf,
 } from '../lib/analytics';
 import { tagestippFuer } from '../lib/tips';
 import { plusTageIso } from '../lib/format';
+import { zeigeFaelligeErinnerungFallsNoetig } from '../lib/notifications';
 
 export function HeutePage({ onNavigate }: { onNavigate: (tab: TabId) => void }) {
   const { kunden, kandidaten, kontakte, ziele, speichereKunde, erfasseKontakt } = useStore();
@@ -82,10 +85,16 @@ export function HeutePage({ onNavigate }: { onNavigate: (tab: TabId) => void }) 
       .map((k) => kandidatenPool.find((e) => e.kunde.id === k.id)!);
   }, [kunden, kontakte]);
 
+  useEffect(() => {
+    zeigeFaelligeErinnerungFallsNoetig(heuteFaellig.length);
+  }, [heuteFaellig.length]);
+
   const wochenFort = useMemo(() => wochenFortschritt(kontakte, 0), [kontakte]);
   const tagestipp = useMemo(() => tagestippFuer(new Date()), []);
   const report = useMemo(() => erstelleWochenReport(kunden, kontakte), [kunden, kontakte]);
   const conversion = useMemo(() => conversionReport(kunden, kontakte), [kunden, kontakte]);
+  const verlauf = useMemo(() => woechentlicherVerlauf(kontakte, 8), [kontakte]);
+  const verlaufLabels = useMemo(() => verlauf.map((p) => `KW ${p.kalenderwoche}`), [verlauf]);
 
   async function erledigt(kunde: Kunde) {
     const jetzt = new Date();
@@ -328,11 +337,21 @@ export function HeutePage({ onNavigate }: { onNavigate: (tab: TabId) => void }) 
         <section className="space-y-3 rounded-2xl border border-[var(--color-line)] bg-white p-4">
           <h2 className="text-lg text-[var(--color-ink)]">Erfolgsreport – diese Woche vs. Vorwoche</h2>
           <div className="grid grid-cols-2 gap-3 text-sm">
-            <ReportZeile label="Kundenkontakte" diese={report.kundenkontakte.diese} vorwoche={report.kundenkontakte.vorwoche} />
+            <ReportZeile
+              label="Kundenkontakte"
+              diese={report.kundenkontakte.diese}
+              vorwoche={report.kundenkontakte.vorwoche}
+              trendWerte={verlauf.map((p) => p.kundenkontakte)}
+              trendLabels={verlaufLabels}
+              trendFarbe="var(--color-orange)"
+            />
             <ReportZeile
               label="Kandidatenkontakte"
               diese={report.kandidatenkontakte.diese}
               vorwoche={report.kandidatenkontakte.vorwoche}
+              trendWerte={verlauf.map((p) => p.kandidatenkontakte)}
+              trendLabels={verlaufLabels}
+              trendFarbe="var(--color-petrol)"
             />
             <ReportZeile label="Neue Termine" diese={report.neueTermine.diese} vorwoche={report.neueTermine.vorwoche} />
             <ReportZeile
@@ -341,6 +360,7 @@ export function HeutePage({ onNavigate }: { onNavigate: (tab: TabId) => void }) 
               vorwoche={report.neueAktiveKunden.vorwoche}
             />
           </div>
+          <p className="text-[11px] text-[var(--color-ink)]/40">Verlauf: letzte 8 Wochen, aktuelle Woche hervorgehoben</p>
           <div className="border-t border-[var(--color-line)] pt-3 text-xs text-[var(--color-ink)]/65">
             <p className="mb-1 font-semibold text-[var(--color-ink)]/70">Conversion-Rate</p>
             <p>Erstkontakt: {conversion.erstkontaktiert}</p>
@@ -370,16 +390,35 @@ export function HeutePage({ onNavigate }: { onNavigate: (tab: TabId) => void }) 
   );
 }
 
-function ReportZeile({ label, diese, vorwoche }: { label: string; diese: number; vorwoche: number }) {
+function ReportZeile({
+  label,
+  diese,
+  vorwoche,
+  trendWerte,
+  trendLabels,
+  trendFarbe,
+}: {
+  label: string;
+  diese: number;
+  vorwoche: number;
+  trendWerte?: number[];
+  trendLabels?: string[];
+  trendFarbe?: string;
+}) {
   const delta = diese - vorwoche;
   return (
     <div className="rounded-xl bg-[var(--color-bg)] p-2.5">
       <p className="text-[11px] text-[var(--color-ink)]/55">{label}</p>
-      <p className="text-lg font-semibold text-[var(--color-ink)]">{diese}</p>
-      <p className={`text-[11px] ${delta >= 0 ? 'text-[#1f7a4d]' : 'text-[var(--color-danger)]'}`}>
-        {delta >= 0 ? '+' : ''}
-        {delta} ggü. Vorwoche ({vorwoche})
-      </p>
+      <div className="flex items-end justify-between gap-2">
+        <div>
+          <p className="text-lg font-semibold text-[var(--color-ink)]">{diese}</p>
+          <p className={`text-[11px] ${delta >= 0 ? 'text-[#1f7a4d]' : 'text-[var(--color-danger)]'}`}>
+            {delta >= 0 ? '+' : ''}
+            {delta} ggü. Vorwoche ({vorwoche})
+          </p>
+        </div>
+        {trendWerte && <Sparkline werte={trendWerte} labels={trendLabels} akzent={trendFarbe} />}
+      </div>
     </div>
   );
 }
